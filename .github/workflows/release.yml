@@ -3,22 +3,22 @@ name: Build And Release
 on:
   push:
     tags:
-      - "v*"
-  workflow_dispatch: 
+      - "v*" # 当推送到 v 开头的标签时触发
+  workflow_dispatch: # 支持在 Actions 页面手动点击按钮触发
 
 permissions:
-  contents: write
+  contents: write # 赋予脚本向 Release 页面上传文件的权限
 
-# 全局环境变量，强制要求所有 Action 使用 Node 24 运行
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # 解决 2026 年 GitHub Actions 对 Node 20 的弃用警告
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
 
 jobs:
   build:
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
+      fail-fast: false # 即使一个平台失败，其他平台也继续构建
       matrix:
         include:
           - os: windows-latest
@@ -38,22 +38,24 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 24 # 强制使用 Node 24
+          node-version: 24 # 使用最新的 Node 24 运行环境
           
       - name: Install Dependencies
-        # 即使没有 lock 文件也能运行
-        run: npm install
+        # 使用 install 替代 ci，防止因为缺少 package-lock.json 导致中断
+        run: npm install 
 
       - name: Package App
-        # 这一步如果失败，请查看这一步下方的详细日志
+        # 修复关键：注入 GH_TOKEN 解决 electron-builder 的身份验证报错
         run: npm run package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Debug - List Build Files
-        # 即使打包失败，也看看输出了什么，方便排查路径问题
-        if: always()
+        if: always() # 无论成功失败都列出文件，方便排查路径
         run: |
-          echo "Checking dist folder content..."
-          ls -R dist || echo "Dist folder not found"
+          echo "Checking dist folder..."
+          ls -R dist/ || echo "dist folder not found"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -75,6 +77,7 @@ jobs:
           path: release-assets
 
       - name: Create GitHub Release
+        # 将构建好的三端文件自动发布到 Release 页面
         uses: softprops/action-gh-release@v2
         with:
           files: release-assets/**/*
