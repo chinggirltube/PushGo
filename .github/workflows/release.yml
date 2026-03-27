@@ -1,0 +1,71 @@
+name: Build And Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            artifact_glob: dist/*.exe
+          - os: macos-latest
+            platform: macos
+            artifact_glob: dist/*.dmg
+          - os: ubuntu-latest
+            platform: linux
+            artifact_glob: dist/*.AppImage
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Package App
+        run: npm run package
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pushgo-${{ matrix.platform }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pushgo-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: List Assets
+        run: ls -lah release-assets
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/**/*
+          generate_release_notes: true
