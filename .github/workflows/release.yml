@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch: # 顺便帮你加上了手动触发按钮
 
 permissions:
   contents: write
@@ -33,11 +34,11 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 24 # 升级到 Node 24 消除警告
 
       - name: Install Dependencies
-        run: npm ci
+        # 换成 npm install 兼容性更好
+        run: npm install 
 
       - name: Package App
         run: npm run package
